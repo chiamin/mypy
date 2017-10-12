@@ -1,0 +1,3 @@
+#!/bin/bash
+
+python ~/mypy/combine.py $1

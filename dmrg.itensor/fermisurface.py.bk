@@ -1,0 +1,234 @@
+import sys
+sys.path.append ('/home/chiamin/mypy/dmrg.itensor')
+sys.path.append ('/home/chiamin/Projects/code/code_ED/python')
+from cmath import exp, pi, sin, cos
+from hsz import file_get
+import numpy as np
+from mpl_toolkits.mplot3d import Axes3D
+import pylab as pl
+import tight_binding as tb
+from numpy.linalg import eigh
+from matplotlib.mlab import griddata
+
+def read_det (f,key):
+    for line in f:
+        if key in line:
+            #print 'Got',key
+            mat = []
+            for line in f:
+                if line == '\n':
+                    return mat
+                row = map(float,line.strip('|\n').split())
+                mat.append (row)
+    raise KeyError
+
+def get_nat_orbs (fname):
+    f = open (fname)
+    
+    corr_up = read_det (f,'correlation matrix up')
+    corr_dn = read_det (f,'correlation matrix dn')
+    corr_up = np.matrix(corr_up)
+    corr_dn = np.matrix(corr_dn)
+    corr = corr_up + corr_dn
+    
+    #corr = np.matrix (read_det (f,'correlation matrix'))
+
+    occ,orbs = np.linalg.eigh (corr)
+    # Note that orbitals are stored in columns, not rows
+    return occ, orbs
+
+def get_corr (f):
+    '''
+    for line in f:
+        if 'MPS' in line:
+            m = int(line.split('.')[-2].strip('m'))
+            break
+    '''
+    try:
+        corr_up = read_det (f,'correlation matrix up')
+        corr_dn = read_det (f,'correlation matrix dn')
+    except KeyError:
+        raise KeyError
+    corr_up = np.matrix(corr_up)
+    corr_dn = np.matrix(corr_dn)
+    corr = corr_up + corr_dn
+
+    #corr = np.matrix (read_det (f,'correlation matrix'))
+
+    occ,orbs = np.linalg.eigh (corr) # Note that orbitals are stored in columns, orbs[:,i], not rows
+    return occ, orbs, f
+
+def get_corr_last (fname):
+    f = open(fname)
+    while True:
+        try: occ, orbs, f = get_corr (f)
+        except KeyError: return occ, orbs, f
+
+def find_q_1d (orb,apbc=False):
+    if apbc:
+    # extend the orbital to 2*L
+        orb = np.array(orb)
+        invorb = -orb
+        orb = np.append (orb,invorb)
+
+    fq = np.fft.fftn (orb)
+    pow_spec = np.abs(fq)**2
+    qs = 2.*np.fft.fftfreq (len(orb)) # in the unit of pi
+    # find k of maximum amplitude
+    maxi  = np.argmax(pow_spec)
+    '''
+    pl.figure()
+    pl.plot (range(len(orb)),orb,'x-')
+    pl.plot (qs,pow_spec,'o-')
+    pl.show()
+    '''
+    return qs[maxi], fq[maxi]
+
+def find_qxy_from_1d (orb,lx,ly,apbc=False):
+# Have assumed that only one qx and one qy are significant
+    xi,yi = lx/2*ly,ly/2    # take the center lines
+    orbx = orb[yi::ly]      # orbital alogn x for y=yi
+    orby = orb[xi:xi+ly]    # orbital alogn y for x=xi
+
+    qx,fqx = find_q_1d (orbx)
+    qy,fqy = find_q_1d (orby,apbc)
+    return qx,qy
+
+def plot_3d (x,y,Z):
+    Z.shape = (len(x),len(y))
+
+    fig = pl.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    Y,X = np.meshgrid(y,x)
+    surf = ax.plot_wireframe(X, Y, Z, rstride=1, cstride=1)
+
+def find_qxy (orb,lx,ly,apbc=False):
+    return find_qxy_from_1d (orb,lx,ly,apbc=False)
+    '''
+    if apbc:
+    # extend the orbital to 2*L
+        orb.shape = (lx,ly)
+        orb = np.array(orb)
+        invorb = -orb
+        orb = np.append (orb,invorb,1)
+        ly = 2*ly
+    '''
+    orb.shape = (lx,ly)
+    fq = np.fft.fft2 (orb)
+    pow_spec = np.abs(fq)**2
+    qxs = 2.*np.fft.fftfreq (lx) # in the unit of pi
+    qys = 2.*np.fft.fftfreq (ly) # in the unit of pi
+    psmax = max(np.reshape(pow_spec,(-1,)))
+    imax = np.where(pow_spec==psmax)
+    xi,yi = imax[0][0],imax[1][0]
+    return qxs[xi], qys[yi]
+
+def get_occ_q_dict (occs,orbs,lx,ly,apbc=False):
+    occq_dict = dict()
+    for i in xrange(len(occs)):
+    #for i in xrange(-1,-len(occs),-1):
+        occ,orb = occs[i],orbs[:,i]
+        # Get qx,qy
+        qx,qy = find_qxy (orb,lx,ly,apbc)
+        occq_dict[qx,qy] = occ
+        # Map to +-qx,+-qy
+        if qx != 0: occq_dict[-qx,qy] = occ
+        if qy != 0: occq_dict[qx,-qy] = occ
+        if qx != 0 and qy != 0: occq_dict[-qx,-qy] = occ
+    return occq_dict
+
+def plot_occ_scatter (occq_dict,title='',c='b',mk='o',ax=None):
+# Scatter-plot of occup(qx,qy)
+    if ax is None:
+        fig = pl.figure()
+        ax = fig.add_subplot(111, projection='3d')
+
+    occs = occq_dict.values()
+    qxys = occq_dict.keys()
+    qxs,qys = zip(*qxys)
+    print 'qxs=',qxs
+    print 'qys=',qys
+    ax.scatter (qxs,qys,occs,c=c,marker=mk)
+    pl.title(title)
+    pl.xlabel ('$k_x/\\pi$',fontsize=20)
+    pl.ylabel ('$k_y/\\pi$',fontsize=20)
+    ax.set_zlabel ('$\\langle n\\rangle_1$',fontsize=20)
+
+    return qxs,qys,occs,ax
+
+def plot_occ_contour (qxs,qys,occq_dict,title=''):
+    fig = pl.figure()
+
+    qxset,qyset = set(qxs),set(qys)
+    qx,qy = list(qxset),list(qyset)
+    qx.sort()
+    qy.sort()
+
+    
+    occs = []
+    for qyi in qy:
+        occs.append([])
+        for qxi in qx:
+            try:
+                occ = occq_dict[qxi,qyi]
+            except KeyError:
+                pass
+                #occ = float('Nan')
+            print qxi,qyi
+            occs[-1].append (occ)
+    [X,Y] = np.meshgrid (qx,qy)
+    v = np.linspace(0., 2., 11, endpoint=True)
+    pl.contourf (X,Y,occs,v)
+    
+    '''
+    x,y,z = [],[],[]
+    for qyi in qy:
+        for qxi in qx:
+            try:
+                z.append (occq_dict[qxi,qyi])
+                x.append (qxi)
+                y.append (qyi)
+            except KeyError:
+                pass
+    xi = np.linspace(min(x), max(x), 50)
+    yi = np.linspace(min(y), max(y), 50)
+    zi = griddata(x, y, z, xi, yi, interp='linear')
+    pl.contourf (xi,yi,zi)
+    '''
+
+    pl.xlabel ('$k_x/\\pi$',fontsize=20)
+    pl.ylabel ('$k_y/\\pi$',fontsize=20)
+    cb = pl.colorbar(ticks=v)
+    cb.ax.set_ylabel ('$\\langle n\\rangle_1$',fontsize=20)
+    pl.title(title,fontsize=20)
+
+    for qyi in qy:
+        pl.plot (qx,[qy]*len(qx),'--k',c='k',lw=0.5)
+
+
+def get_occ_q_dict_from_file (fname,lx,ly,apbc=False):
+    occ,orbs  = get_nat_orbs (fname)
+    occq_dict = get_occ_q_dict (occ,orbs,lx,ly,apbc)
+    return occq_dict
+
+def rot_qxy (occq_dict):
+    re = dict()
+    for qx,qy in occq_dict:
+        re[qy,qx] = occq_dict[qx,qy]
+    return re
+
+if __name__ == '__main__':
+    fname = sys.argv[1]
+    lx,ly = sys.argv[2],sys.argv[3]
+    title, apbc = '',False
+    for arg in sys.argv:
+        if 'tit'   in arg: title = arg.split('=')[-1]
+        if '-apbc' in arg: apbc = True
+
+    occq_dict  = get_occ_q_dict_from_file (fpbc, lx,ly,apbc=False)
+
+    qxs,qys,occs,ax   = plot_occ_scatter (occq_dict, c='b')
+
+    plot_occ_contour (qxs,qys,occq_dict)
+
+    pl.show()
