@@ -15,11 +15,24 @@ def equi_prof (raw, plot=True, plotn=1000):
     try: err.append ((sqr/count - _mean*_mean)**0.5 / count)
     except ValueError: print (i, sqr/count, _mean*_mean)
   if plot:
+    fig = pl.figure()
+    ax1 = fig.add_subplot(111, label="1")
+    ax2 = fig.add_subplot(111, label="2", frame_on=False)
     itv = int(len(ns) / int(plotn))
     if itv == 0: itv = 1
-    pl.errorbar (ns[::itv], mean[::itv], err[::itv])
-    pl.xlabel('samples')
-    pl.ylabel('mean')
+    ax1.errorbar (ns[::itv], mean[::itv], err[::itv])
+    ax1.set_xlabel('samples')
+    ax1.set_ylabel('mean')
+    n = range(1,len(err)+1)
+    ax2.plot (n[::itv],err[::itv],'.r')
+    ax2.set_xscale('log')
+    ax2.set_yscale('log')
+    ax2.xaxis.set_label_position('top')
+    ax2.yaxis.set_label_position('right')
+    ax2.xaxis.tick_top()
+    ax2.yaxis.tick_right()
+    ax2.set_xlabel('nsample')
+    ax2.set_ylabel('errorbar')
     pl.show()
   return ns, mean, err
 
