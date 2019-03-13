@@ -3,7 +3,6 @@ sys.path.append ('/home/chiamin/mypy/dmrg.itensor/')
 import trunerr as te
 import numpy as np
 import utility as ut
-from pairing import get_pairing
 
 def file_get (f, key, typ=str):
   for line in f:
@@ -19,14 +18,13 @@ def file_goto (f, key):
   print key,'not found'
   raise KeyError
 
-def get_mea (f):
+def get_mea (f,obs):
+  vals = []
   for line in f:
-    if 'n_up' in line: nup = float(line.split()[-1])
-    if 'n_dn' in line: ndn = float(line.split()[-1])
-    if 'N_tot' in line: n = float(line.split()[-1])
-    if 'sz' in line: sz = float(line.split()[-1])
+    for o in obs:
+        if o in line: vals.append (float(line.split()[-1]))
     if 'Sweep=' in line: break
-  return f, nup, ndn, n, sz
+  return f, vals
 
 def getxy (i, lx, ly):
 # i starts from 1
@@ -93,10 +91,11 @@ def get_lastm_pos (fname,N,start=''):
   f.close()
   return ms, pos
 
-def mea_obs (f,lx,ly,subkey=''):
+def mea_obs (f,lx,ly,obs,subkey=''):
     N = lx*ly
     terri, tn = 0., 0.
-    xs,ys,nups,ndns,ns,szs,hs = [],[],[],[],[],[],[]
+    xs,ys = [],[]
+    obss = [[] for i in xrange(len(obs))]
     for i in xrange(N,0,-1):
       for line in f:
         if 'Max_m' in line:
@@ -113,18 +112,15 @@ def mea_obs (f,lx,ly,subkey=''):
       except KeyError:
           print 'Cannot find:','Measure on site '+str(i)
           raise KeyError
-      f,nup,ndn,n,sz = get_mea(f)
+      f,vals = get_mea(f,obs)
 
       xs.append(x)
       ys.append(y)
-      nups.append(nup)
-      ndns.append(ndn)
-      ns.append(n)
-      szs.append(sz)
-      hs.append(1-n)
-    return m, terri/tn, xs,ys,nups,ndns,ns,szs,hs
+      for i in xrange(len(obss)):
+        obss[i].append (vals[i])
+    return m, terri/tn, xs,ys,obss
 
-def get_meas_ms_once (fname,start='',mode='eachm',subkey=''):
+def get_meas_ms_once (fname,obs,start='',mode='eachm',subkey=''):
 # mode can be 'eachm' or 'all'
   f = open (fname)
   f,lx = file_get (f,'Lx',int)
@@ -138,25 +134,25 @@ def get_meas_ms_once (fname,start='',mode='eachm',subkey=''):
     for p in pos:
         f.seek (p)
         try:
-            m, terr, xs,ys,nups,ndns,ns,szs,hs = mea_obs (f,lx,ly,subkey)
+            m, terr, xs,ys, obsi = mea_obs (f,lx,ly,obs,subkey)
         except KeyError:
             ms = ms[:len(obss)]
             break
         print 'm=',m
         terrs.append (terr)
-        obss.append ([xs,ys,nups,ndns,ns,szs,hs])
+        obss.append ([xs,ys]+obsi)
   elif mode == 'all':
     ms = []
     while True:
         try:
             file_goto (f,start)
-            m, terr, xs,ys,nups,ndns,ns,szs,hs = mea_obs (f,lx,ly,subkey)
+            m, terr, xs,ys, obsi = mea_obs (f,lx,ly,obs,subkey)
         except KeyError:
             break
 
         ms.append (m)
         terrs.append (terr)
-        obss.append ([xs,ys,nups,ndns,ns,szs,hs])
+        obss.append ([xs,ys]+obsi)
   return ms, terrs, obss
 
 def getmax (vals, crit):
@@ -201,26 +197,23 @@ def addlocalh (fname, parafile):
     f.write (line)
   f.close()
 
-def addlabels (fname, trunc, m, mu=None, n=None):
+def addlabels (fname, trunc, m):
   def get_bounding (f):
     for line in f:
       if 'BoundingBox' in line:
         xmin,ymin,xmax,ymax = map (float, line.split()[1:])
         return xmin,ymin,xmax,ymax
 
-  def add_label (strings, labels, xmin,ymin,xmax):
-    l = max([len(string) for string in strings])
-    l *= 10
+  def add_label (string, labels, xmin,ymin,xmax):
+    l = len (string) * 10
     if xmax-xmin < l:
       dl = l - (xmax - xmin)
       xmin -= dl
       xmax += dl
     xplace = (xmax - xmin)/2 - l/2+25
     ymin -= 30
-    st = []
-    for string in strings:
-        st.append (str(xplace)+' '+str(ymin)+' moveto ('+string+') show\n')
-        ymin -= 30
+    st = str(xplace)+' '+str(ymin)+' moveto ('+string+') show\n'
+    labels.append (st)
     ymin -= 30
     return st, xmin, ymin, xmax
 
@@ -255,42 +248,18 @@ def addlabels (fname, trunc, m, mu=None, n=None):
 
   # Truncation error and m
   trunc = "%.3g" % trunc
-  strings = ["m = "+str(m)+", truncated = "+trunc]
-  if mu != None and n != None:
-    mu = round (mu, 4)
-    n = round (n, 4)
-    strings.append ('mu = '+str(mu)+', n = '+str(n))
-  labels, xmin, ymin, xmax = add_label (strings, labels, xmin,ymin,xmax)
+  string = "m = "+str(m)+", truncated = "+trunc
+  labels, xmin, ymin, xmax = add_label (string, labels, xmin,ymin,xmax)
 
   write (f,xmin,ymin,xmax,ymax,labels)
 
-def write_pairing_tmp (fname,swp,tmpfile='tmp2'):
-    with open(tmpfile,'w') as f:
-        swps,ms,delta_dicts = get_pairing (fname)
-
-        delta_dict = delta_dicts[swp]
-
-        maxdelta = max(delta_dict.values())
-        mindelta = min(delta_dict.values())
-        print >>f, maxdelta, mindelta
-
-        for key, delta in delta_dict.iteritems():
-            x1,y1,x2,y2 = key
-            print >>f, x1, y1, 'moveto', x2, y2, 'lineto', delta
-
-def hsz_plot_dat (fname,swp,ter,latt='ordinary',replace=False,gc=False):
-  mu,den = None,None
-  with open (fname) as f:
-      f,lx = file_get (f,'Lx',int)
-      f,ly = file_get (f,'Ly',int)
-      if gc:
-          f,mu = ut.file_get (f, 'Got basic.mu', float)
-      f,swp,m,xs,ys,nups,ndns,ns,szs,hs = ut.get_meas (f,lx,ly,swp)
-      print 'm,sweep =',m,swp
+def hsz_plot_dat (fname,xs,ys,szs,hs,suf='',latt='ordinary',replace=False):
+  f = open (fname)
+  f,lx = file_get (f,'Lx',int)
+  f,ly = file_get (f,'Ly',int)
 
   maxsz = getmax (szs, crit=0.03)
   maxh  = getmax (hs, crit=0.02)
-  suf='.m'+str(m)
 
   hszstr = '1\t1\t'+str(lx)+'\t'+str(ly)+'\t'+str(maxsz)+'\t'+str(maxh)+'\n'
   for i in xrange(len(hs)):
@@ -308,21 +277,23 @@ def hsz_plot_dat (fname,swp,ter,latt='ordinary',replace=False,gc=False):
 
   addlocalh (hszfile, fname)
 
-  if gc:
-    write_pairing_tmp (fname, swp)
-    perl = 'plothsz.delta.pl'
-    N = sum(ns)
-    den = N/float(lx*ly)
-  else:
-    if latt == 'ordinary': perl = 'plothsz.pl'
-    elif latt == 'rot45':  perl = 'plothsz.diag.pl'
+  if latt == 'ordinary': perl = 'plothsz.pl'
+  elif latt == 'rot45':  perl = 'plothsz.diag.pl'
 
   os_exe (perl+' '+hszfile)
   os_exe ('rm '+hszfile)
   os_exe ('rm tmp')
-  psfile = hszfile+'.ps'
-  addlabels (psfile, ter, m, mu, den)
-  return psfile
+  return hszfile+'.ps'
+
+def get_Nsites (fname):
+    with open(fname) as f:
+        for line in f:
+            if 'Lx =' in line:
+                lx = int(line.split()[-1])
+            elif 'Ly =' in line:
+                ly = int(line.split()[-1])
+            if 'lx' in locals() and 'ly' in locals():
+                return lx*ly
 
 if __name__ == '__main__':
   fname = sys.argv[1]
@@ -334,14 +305,17 @@ if __name__ == '__main__':
     if arg == '-rot': latt = 'rot45'
 
   sweeps, cutoffs, ms, terr, E, Eps = te.trunerr2 (fname,mmin)
+  N = get_Nsites (fname)
+  print 'N',N
 
   f = open (fname)
   f,lx = file_get (f,'Lx',int)
   f,ly = file_get (f,'Ly',int)
   print sweeps
-  f,swp,m,xs,ys,nups,ndns,ns,szs,hs = ut.get_meas (f,lx,ly,sweeps[-1])
-  print 'sz =',szs
-  print 'h =',hs
-  psfile = hsz_plot_dat (fname,xs,ys,szs,hs,latt=latt,replace=True)
+  f,swp,m,sites,obss = ut.get_meas_obs (f,N,['sz'],sweeps[-1])
+  sz = obss[0]
+  print 'sz =',sz
+  print len(sz),N
 
+  psfile = hsz_plot_dat (fname,xs,ys,szs,hs,latt=latt,replace=True)
   addlabels (psfile, terr[-1], ms[-1])

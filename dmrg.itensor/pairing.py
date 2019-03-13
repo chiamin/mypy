@@ -1,8 +1,10 @@
 import sys
 sys.path.append ('/home/chiamin/mypy/dmrg.itensor')
-import utility as ut
+import imp
 import pylab as pl
 import plotn
+
+ut = imp.load_source ('ut','/home/chiamin/mypy/dmrg.itensor/utility.py')
 
 def get_pairing (fname):
     f = open (fname)
@@ -25,7 +27,7 @@ def get_pairing (fname):
                 x1,y1,x2,y2 = map(int,tmp[:4])
                 di = float(tmp[-1])
                 delta_dict[x1,y1,x2,y2] = di
-
+    delta_dicts.append (delta_dict)
     return swps,ms,delta_dicts
 
 def print_pairing_x (fname,y=1,ax=0,plotmux=1):
@@ -43,11 +45,12 @@ def print_pairing_x (fname,y=1,ax=0,plotmux=1):
     if plotmux: xs = mu
 
     if ax:
-        ax.plot (xs[:-1],deltax,'o-k')
-        ax.plot (xs,deltay,'x-k',mew=2)
+        ax.plot (xs[:-1],deltax,'o-k',ms=4)
+        ax.plot (xs,deltay,'o-k',ms=4)
     else:
-        pl.plot (xs[:-1],deltax,'o-k')
-        pl.plot (xs,deltay,'x-k',mew=2)
+        pl.plot (xs[:-1],deltax,'o-k',ms=4)
+        pl.plot (xs,deltay,'o-k',ms=4)
+    #pl.yscale('log')
     #pl.show()
 
 if __name__ == '__main__':

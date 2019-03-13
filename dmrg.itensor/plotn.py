@@ -1,7 +1,9 @@
 import sys
 sys.path.append ('/home/chiamin/mypy/dmrg.itensor/')
-import utility as ut
+import imp
 import pylab as pl
+
+ut = imp.load_source ('ut','/home/chiamin/mypy/dmrg.itensor/utility.py')
 
 def get_mu (fname,y=1):
     f = open (fname)
@@ -19,7 +21,7 @@ def get_mu (fname,y=1):
             hs.append (h)
     return xs,mus,hs
 
-def plotn (fname,ax=0,c='k',plotmux=1,y=1,lb=''):
+def plotn (fname,ax=0,c='k',plotmux=1,y=1,lb='',mk='o',mfc='',mks=6):
     if len(sys.argv) > 2: SWP = sys.argv[2]
     else: SWP = 0
 
@@ -45,14 +47,18 @@ def plotn (fname,ax=0,c='k',plotmux=1,y=1,lb=''):
         n.append (nups[i] + ndns[i])
     if plotmux: x = mu
 
-    for xi,ni in zip(x,n): print xi,ni
+    #for xi,ni in zip(x,n): print xi,ni
 
+    mew = 1
+    if mk=='x': mew = 2
+    if mfc=='': mfc = c
     if ax:
-        ax.plot (x,n,'o-',c=c,label=lb)
+        ax.plot (x,n,'o-',c=c,label=lb,marker=mk,mew=mew,mfc=mfc,ms=mks)
     else:
-        print len(x),len(n)
-        pl.plot (x,n,'o-',c=c,label=lb)
+        #print len(x),len(n)
+        pl.plot (x,n,'o-',c=c,label=lb,marker=mk,mew=mew,mfc=mfc,ms=mks)
     #pl.show()
+    return x,n
 
 if __name__ == '__main__':
     fname = sys.argv[1]

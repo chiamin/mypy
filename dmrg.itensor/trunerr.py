@@ -46,7 +46,7 @@ def trunerr (fname):
       sweep = int(tmp[0].split('=')[-1])
       HS    = int(tmp[1].split('=')[-1])
       Bond  = line.split('=')[-1].strip()
-      if HS==1 and Bond=='(1,2)':
+      if HS==1 and (Bond=='(1,2)' or Bond.split('/')[0]=='1'):
         sweeps.append (sweep)
         cutoffs.append (-1)
         ms.append (-1)
@@ -71,10 +71,6 @@ def trunerr (fname):
       E[-1] = en
       Eps[-1] = en/Nsites
 
-  for i in xrange(len(terr)):
-    terr[i] = sum(terr[i])/len(terr[i])
-
-  #return re
   if E[-1] == -1.e12:
     del sweeps[-1]
     del cutoffs[-1]
@@ -82,17 +78,23 @@ def trunerr (fname):
     del terr[-1]
     del E[-1]
     del Eps[-1]
+
+  for i in xrange(len(terr)):
+    terr[i] = sum(terr[i])/len(terr[i])
+
+  #return re
   return sweeps, cutoffs, ms, terr, E, Eps
 
-def trunerr2 (fname,mmin=0,mmax=100000000,itv=-1):
+def trunerr2 (fname,mmin=0,mmax=100000000,itv=-1,verbose=True):
   sweeps, cutoffs, ms, terr, E, Eps = trunerr (fname)
 
-  for i in zip(*[sweeps, cutoffs, ms, terr, E, Eps]): print i
+  if verbose:
+      for i in zip(*[sweeps, cutoffs, ms, terr, E, Eps]): print i
 
   re_swps, re_cutoff, re_ms, re_terr, re_E, re_Eps = [],[],[],[],[],[]
   for i in xrange(len(ms)-1):
-    if ms[i+1] != ms[i] or (i == len(ms)-2 and ms[-1] not in re_ms):
-        if i == len(ms)-2: i += 1
+    #if ms[i+1] != ms[i] or (i == len(ms)-2 and ms[-1] not in re_ms):
+        #if i == len(ms)-2: i += 1
         re_swps.append (sweeps[i])
         re_cutoff.append (cutoffs[i])
         re_ms.append (ms[i])
@@ -101,6 +103,18 @@ def trunerr2 (fname,mmin=0,mmax=100000000,itv=-1):
         re_Eps.append (Eps[i])
 
   return re_swps, re_cutoff, re_ms, re_terr, re_E, re_Eps
+
+def get_eachm (ms, mmin=0, *obss):
+  re_ms = []
+  re = [[] for i in xrange(len(obss))]
+  for i in xrange(len(ms)-1):
+    if ms[i] > mmin and (ms[i+1] != ms[i] or (i == len(ms)-2 and ms[-1] not in re_ms)):
+        #if i == len(ms)-2: i += 1
+        re_ms.append (ms[i])
+        for j in xrange(len(obss)):
+            re[j].append (obss[j][i])
+  return [re_ms] + re
+
   '''
   if ms[-1] not in re_ms:
 
@@ -121,20 +135,30 @@ def trunerr2 (fname,mmin=0,mmax=100000000,itv=-1):
   sweeps, cutoffs, ms, terr, E, Eps = sweeps[n:nend:itv], cutoffs[n:nend:itv], ms[n:nend:itv], terr[n:nend:itv], E[n:nend:itv], Eps[n:nend:itv]
   return sweeps, cutoffs, ms, terr, E, Eps'''
 
-def get_en (fname,mmin=500,mmax=10000000,plot=False,order=1,itv=-1):
-  sweep, cutoff, ms, terr, E, Eps = trunerr2 (fname, mmin, mmax, itv=itv)
+def get_en (fname,mmin=500,mmax=10000000,plot=False,order=1,itv=-1,verbose=True,fitpts=0,fac=1.):
+  sweep, cutoff, ms, terr, E, Eps = trunerr2 (fname, mmin, mmax, itv=itv ,verbose=verbose)
+  ms, sweep, cutoff, terr, E, Eps = get_eachm (ms, mmin, sweep, cutoff, terr, E, Eps)
   terrs, Epss = [],[]
-  print 'sweep\tcutoff\tm \ttrunerr\t\t\tE\t\tEpersite'
+  if verbose:
+      print 'sweep\tcutoff\tm \ttrunerr\t\t\tE\t\tEpersite'
   for i in xrange(len(sweep)):
-    print str(sweep[i]).ljust(5),str(cutoff[i]).ljust(7),str(ms[i]).ljust(4),str(terr[i]).ljust(20),str(E[i]).ljust(20),Eps[i]
+    if verbose:
+      print str(sweep[i]).ljust(5),str(cutoff[i]).ljust(7),str(ms[i]).ljust(4),str(terr[i]).ljust(20),str(E[i]).ljust(20),Eps[i]
     if ms[i] >= mmin and ms[i] <= mmax:
       terrs.append (terr[i])
       Epss.append (Eps[i])
 
+  Epss = [i*fac for i in Epss]
+  terrs = [i*fac for i in terrs]
+
+  terrs = terrs[-fitpts:]
+  Epss = Epss[-fitpts:]
+
   fit  = ff.polyfit (terrs,Epss,order=order,err=terrs)
-  fitx = terr+[0.]
+  fitx = terrs+[0.]
   fity = ff.polyf (fit,fitx)
-  print fit
+  if verbose:
+    print fit
   Efit = fity[-1]
   Eerr = 0.2*abs(Efit-Epss[-1])
   print 'E =',Efit,'+-',Eerr
@@ -152,7 +176,20 @@ def get_en (fname,mmin=500,mmax=10000000,plot=False,order=1,itv=-1):
 
   return Efit,Eerr
 
+def full_sweeps_en (fname):
+  sweeps, cutoffs, ms, terr, E, Eps = trunerr (fname)
+  fig, ax1 = pl.subplots()
+  ax1.plot (range(len(ms)),ms)
+  ax2 = ax1.twinx()
+  ax2.plot (range(len(ms)),Eps,'o-')
+  pl.show()
+
+
 if __name__ == '__main__':
+  if '-check' in sys.argv:
+      full_sweeps_en (sys.argv[1])
+      exit()
+
   mmin=-1
   mmax=10000000
   if len(sys.argv) > 2:

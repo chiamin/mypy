@@ -1,153 +1,96 @@
-import sys, os
-sys.path.append('/home/chiamic/mypy')
-import setinput_localmuh as localmuh
-import setinput_delta as setdel
+import sys, os, random
 
-def get_para (para,key,typ=str):
-    for line in para:
-        if key in line:
-            tmp = line.strip().split()
-            return typ(tmp[-1])
-    print 'Cannot find key:',key
-    raise KeyError
-
-def set_para (para,key,val):
-    i = 0
-    while i < len(para):
-        if key in para[i]:
-            tmp = para[i].strip().split()[-1]
-            j = para[i].find (tmp)
-            para[i] = para[i][:j]+str(val)+'\n'
-            return para
-        i += 1
-    print 'Cannot find key:',key
-    raise KeyError
-
-def para_move_to (para, i, key, skiplines=0):
-    while i < len(para):
-        if key in para[i]:
-            break
-        i += 1
-    return para, i+skiplines
-
-def remove_bracket (para,key,skipline=1):
-    i = 0
-    para,i = para_move_to (para,i,key)
-    para,i = para_move_to (para,i,'{')
-
-    i += skipline+1
-    while '}' not in para[i]:
-        del para[i]
-    return para,i
-
-def replace_key (para,i,key,newkey):
-    para,i = para_move_to (key)
-    para[i] = newkey
-    return para,i
-
-def set_localmuh (para, muh):
-    i = 0
-    para,i = para_move_to (para, i, 'localmuh')
-    para[i] = '    localmuh\n'
-    para,i = remove_bracket (para,'localmuh')
-
-    for x,y,mode,mu,h in reversed(muh):
-        para.insert (i,'        '+str(x)+'    '+str(y)+'      '+str(mu)+'      '+str(h)+'\n')
-    return para
-
-def set_delpot (para, delpot):
-    i = 0
-    para,i = para_move_to (para,i,'delta_potential')
-    if delpot == 0:
-        para[i] = '    delta_potentialX\n'
-    else:
-        para[i] = '    delta_potential\n'
-        para,i = remove_bracket (para,'delta_potential')
-        for x1,y1,x2,y2,d in reversed(delpot):
-            para.insert (i,'        '+str(x1)+'   '+str(y1)+'   '+str(x2)+'   '+str(y2)+'   '+str(d)+'\n')
-    return para
-
-def set_sweeps (para):
-    para,i = remove_bracket (para,'sweeps')
-    sweeps = [\
-    '        64     1E-10    10     0',\
-    '        128    1E-10    8      0',\
-    '        200    1E-12    7      0',\
-    '        300    1E-12    6      0',\
-    '        500    1E-12    5      0',\
-    '        800    1E-12    5      0',\
-    '        1400   1E-12    4      0',\
-    '        2400   1E-12    4      0',\
-    '        4000   1E-12    4      0',\
-    '        5500   1E-12    4      0',\
-    '        7000   1E-12    4      0',\
-    '        9000   1E-12    4      0',\
-    '        11000  1E-12    3      0',\
-    '        13000  1E-12    3      0',\
-    '        15000  1E-12    3      0',\
-    ]
-    for sw in reversed(sweeps):
-        para.insert (i,sw+'\n')
-    return para
+def write_localmuh_random (f,lx,ly,minmu=0,maxmu=0,minh=0,maxh=0):
+    for x in xrange(1,lx+1):
+        for y in xrange(1,ly+1):
+            mu = rnadom.uniform (minmu, maxmu)
+            h = rnadom.uniform (minh, maxh)
+            print>>f, '        '+str(x)+'  '+str(y)+'  '+str(mu)+'  '+str(h)
 
 if __name__ == '__main__':
-    para_base = sys.argv[1]
-    f = open (para_base)
-    para = f.readlines()
-    f.close()
+    pfile = sys.argv[1]
 
-    lx = 16
-    ly = 4
-    U  = 6
-    tp = 0
-    mu = 0
-    N_up = 0
-    N_dn = 0
-    gc = 'yes'
-    write = 'no'
-    out_minm = 800
-    nsweep_tmp = 2
+    Lx = 48
+    Ly = 4
+    Nup = Ndn = Lx*Ly*7/8/2
+    delta = 10
 
-    suffix = suffixdel = ''
+    with open(pfile) as f:
+        print>>f, 'basic'
+        print>>f, '    {'
+        print>>f, '    Lx = '+str(Ly)
+        print>>f, '    Ly = '+str(Ly)
+        print>>f, '    N_up = '+str(Nup)
+        print>>f, '    N_dn = '+str(Ndn)
+        print>>f, '    U = 8'
+        print>>f, '    tx = 1'
+        print>>f, '    ty = 1'
+        print>>f, '    tpr = 0'
+        print>>f, '    mu = 0'
+        print>>f, '    phase = 1.'
+        print>>f, '    periodic_x = 0'
+        print>>f, '    periodic_y = 1'
+        print>>f, '    grand_canonical = yes'
+        print>>f, '    Npar_crit = 10000'
+        print>>f, '    delta_potential = dwave_all'
+        print>>f
+        print>>f, '    initMPS = random'
+        print>>f, '    // can be AF, stripes, or random'
+        print>>f
+        print>>f, '    stripeMPSXX'
+        print>>f, '    {'
+        print>>f, '        hx         = 4'
+        print>>f, '        hy         = 1 2 3 4'
+        print>>f, '        mu_tmp     = -1'
+        print>>f, '        h_tmp      = 0.5'
+        print>>f, '    }'
+        print>>f
+        print>>f, '    localmuh'
+        print>>f, '    {'
+        print>>f, '        x    y      mu      h'
 
-    # Set values
-    para = set_para (para,'Lx',lx)
-    para = set_para (para,'Ly',ly)
-    para = set_para (para,'U',U)
-    para = set_para (para,'tpr',tp)
-    para = set_para (para,'mu',mu)
-    para = set_para (para,'N_up',N_up)
-    para = set_para (para,'N_dn',N_dn)
-    para = set_para (para,'grand_canonical',gc)
-    para = set_para (para,'write_to_file',write)
-    para = set_para (para,'out_minm',out_minm)
-    para = set_para (para,'nsweep_tmp',nsweep_tmp)
-    para = set_para (para,'outdir',os.getcwd())
+        write_localmuh_random (f, Lx, Ly, minmu=1.4, maxmu=1.6)
 
-    # Set sweeps
-    set_sweeps (para)
-
-    # Set localmuh
-    muh, suffix = localmuh.linear_mu (lx,ly,mu1=1.4,mu2=2.2, mode='permanent')
-    set_localmuh (para, muh)
-
-    # Set delta_potential
-    delpot, suffixdel = setdel.delta_all (lx,ly,delta=0.25)
-    set_delpot (para,delpot)
-
-
-    if gc:
-        nname = 'mu'+str(mu)
-    else:        
-        n = (N_up+N_dn) / (lx*ly)
-        nname = 'n'+str(n)[:5]
-
-    ofname = 'huben'+str(lx)+'x'+str(ly)+'_U'+str(U).rstrip('0').rstrip('.')+'_'+nname+'_tp'+str(tp)+'_'+suffix+'_'+suffixdel+'.in'
-    out_suffix = ofname[5:-3]
-    para = set_para (para,'out_suffix',out_suffix)
-
-
-    f = open (ofname,'w')
-    for line in para:
-        f.write (line)
-    f.close()
+        print>>f, '    }'
+        print>>f
+        print>>f, '    write_to_file = yes'
+        print>>f, '    outdir = '+os.getcwd()
+        print>>f, '    out_suffix = hp_10'
+        print>>f, '    out_minm = 800'
+        print>>f
+        print>>f, '    read = no
+        print>>f, '    read_dir = /mnt/ceph/users/chiaminchung/hubbard_pairing/2_sqrt2_1'
+        print>>f, '    read_sites = Hub_hp_2_sqrt2_0.07.sites'
+        print>>f, '    read_psi = psi_hp_2_sqrt2_0.07.m2400.mps'
+        print>>f
+        print>>f, '    nsweep_tmp = 0'
+        print>>f, '    nsweep_main = 2'
+        print>>f, '    WriteM = 5000'
+        print>>f, '    quiet = no'
+        print>>f, '    sweeps'
+        print>>f, '    {'
+        print>>f, '        m      cutoff   niter  noise    nsweep   delta'
+        print>>f, '        2      1E-10    10     1e-8     10       '+str(delta)
+        print>>f, '        4      1E-10    10     1e-8     10       '+str(delta)
+        print>>f, '        8      1E-10    10     1e-8     10       '+str(delta)
+        print>>f, '        16     1E-10    10     1e-8     10       '+str(delta)
+        print>>f, '        32     1E-10    10     1e-8     10       '+str(delta)
+        print>>f, '        64     1E-10    10     1e-8     10       '+str(delta)
+        print>>f, '        128    1E-10    10     1e-9     10       '+str(delta)
+        print>>f, '        200    1E-12    10     1e-10    10       '+str(delta)
+        print>>f, '        300    1E-12    10     0        10       '+str(delta)
+        print>>f, '        500    1E-12    10     0        10       '+str(delta)
+        print>>f, '        800    1E-12    10     0        10       '+str(delta)
+        print>>f, '        1400   1E-12    10     0        4        '+str(delta)
+        print>>f, '        2400   1E-12    8      0        4        '+str(delta)
+        print>>f, '        3000   1E-12    6      0        3        '+str(delta)
+        print>>f, '        4000   1E-12    4      0        3        '+str(delta)
+        print>>f, '        5000   1E-12    4      0        3        '+str(delta)
+        print>>f, '        6000   1E-12    4      0        3        '+str(delta)
+        print>>f, '        7000   1E-12    4      0        3        '+str(delta)
+        print>>f, '        8000   1E-12    4      0        3        '+str(delta)
+        print>>f, '        9000   1E-12    4      0        3        '+str(delta)
+        print>>f, '       10000   1E-12    4      0        3        '+str(delta)
+        print>>f, '       11000   1E-12    4      0        3        '+str(delta)
+        print>>f, '       12000   1E-12    4      0        3        '+str(delta)
+        print>>f, '    }'
