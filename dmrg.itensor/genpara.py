@@ -3,8 +3,8 @@ import sys, os, random
 def write_localmuh_random (f,lx,ly,minmu=0,maxmu=0,minh=0,maxh=0):
     for x in xrange(1,lx+1):
         for y in xrange(1,ly+1):
-            mu = rnadom.uniform (minmu, maxmu)
-            h = rnadom.uniform (minh, maxh)
+            mu = random.uniform (minmu, maxmu)
+            h = random.uniform (minh, maxh)
             print>>f, '        '+str(x)+'  '+str(y)+'  '+str(mu)+'  '+str(h)
 
 if __name__ == '__main__':
@@ -15,7 +15,7 @@ if __name__ == '__main__':
     Nup = Ndn = Lx*Ly*7/8/2
     delta = 10
 
-    with open(pfile) as f:
+    with open(pfile,'w') as f:
         print>>f, 'basic'
         print>>f, '    {'
         print>>f, '    Lx = '+str(Ly)
@@ -58,7 +58,7 @@ if __name__ == '__main__':
         print>>f, '    out_suffix = hp_10'
         print>>f, '    out_minm = 800'
         print>>f
-        print>>f, '    read = no
+        print>>f, '    read = no'
         print>>f, '    read_dir = /mnt/ceph/users/chiaminchung/hubbard_pairing/2_sqrt2_1'
         print>>f, '    read_sites = Hub_hp_2_sqrt2_0.07.sites'
         print>>f, '    read_psi = psi_hp_2_sqrt2_0.07.m2400.mps'
