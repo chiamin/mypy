@@ -18,7 +18,7 @@ if __name__ == '__main__':
     with open(pfile,'w') as f:
         print>>f, 'basic'
         print>>f, '    {'
-        print>>f, '    Lx = '+str(Ly)
+        print>>f, '    Lx = '+str(Lx)
         print>>f, '    Ly = '+str(Ly)
         print>>f, '    N_up = '+str(Nup)
         print>>f, '    N_dn = '+str(Ndn)
